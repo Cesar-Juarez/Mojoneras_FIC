@@ -1,0 +1,597 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visor Profesional de Mojoneras</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #F2F5F9;
+    color: #263445;
+}
+
+header {
+    background: #142D4E;
+    color: white;
+    padding: 18px 25px;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 23px;
+}
+
+header p {
+    margin: 6px 0 0;
+    color: #D1DFED;
+    font-size: 13px;
+}
+
+.contenedor {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 15px;
+    padding: 15px;
+    height: calc(100vh - 85px);
+}
+
+.panel {
+    background: white;
+    border-radius: 10px;
+    padding: 17px;
+    overflow-y: auto;
+    box-shadow: 0 2px 8px #00000012;
+}
+
+h2 {
+    color: #142D4E;
+    font-size: 17px;
+}
+
+.total {
+    background: #EAF2F5;
+    border-left: 4px solid #218C78;
+    border-radius: 7px;
+    padding: 12px;
+    margin-bottom: 15px;
+}
+
+.total strong {
+    display: block;
+    font-size: 25px;
+    color: #142D4E;
+}
+
+.total span {
+    color: #526477;
+    font-size: 12px;
+}
+
+#buscador {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #CCD7E2;
+    border-radius: 7px;
+    margin-bottom: 12px;
+    font-size: 14px;
+}
+
+#lista {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.elemento {
+    padding: 12px;
+    border: 1px solid #E0E6ED;
+    border-radius: 7px;
+    cursor: pointer;
+    background: white;
+    color: #142D4E;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.elemento:hover,
+.elemento.activo {
+    background: #E7F3EF;
+    border-color: #218C78;
+}
+
+.informacion {
+    margin-top: 20px;
+    border-top: 2px solid #E7EDF3;
+    padding-top: 15px;
+}
+
+.seccion {
+    background: #EAF0F6;
+    color: #142D4E;
+    padding: 9px;
+    font-size: 12px;
+    font-weight: bold;
+    border-radius: 5px;
+    margin: 14px 0 8px;
+}
+
+.dato {
+    margin-bottom: 12px;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+
+.dato strong {
+    display: block;
+    color: #142D4E;
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+.boton {
+    display: inline-block;
+    padding: 11px 13px;
+    background: #142D4E;
+    color: white;
+    text-decoration: none;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    margin: 4px 3px 4px 0;
+}
+
+.boton-verde {
+    background: #218C78;
+}
+
+#mapa {
+    height: 100%;
+    min-height: 400px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px #00000012;
+    z-index: 1;
+}
+
+.etiqueta-mojonera {
+    background: #218C78;
+    border: 2px solid white;
+    border-radius: 6px;
+    color: white;
+    font-weight: bold;
+    font-size: 12px;
+    padding: 5px 8px;
+    box-shadow: 0 2px 5px #00000055;
+    white-space: nowrap;
+}
+
+.etiqueta-mojonera::before {
+    display: none;
+}
+
+.mensaje {
+    color: #718096;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+@media(max-width:750px) {
+    .contenedor {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+    }
+
+    .panel {
+        max-height: none;
+    }
+
+    #mapa {
+        height: 65vh;
+        min-height: 400px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>VISOR TOPOGRÁFICO DE MOJONERAS</h1>
+    <p>Consulta de ubicación, coordenadas y cédulas de identificación</p>
+</header>
+
+<div class="contenedor">
+
+    <aside class="panel">
+
+        <h2>Catálogo de mojoneras</h2>
+
+        <div class="total">
+            <strong id="total">0</strong>
+            <span>Mojoneras registradas</span>
+        </div>
+
+        <input
+            type="text"
+            id="buscador"
+            placeholder="Buscar mojonera..."
+        >
+
+        <div id="lista">
+            <p class="mensaje">Cargando registros...</p>
+        </div>
+
+        <div class="informacion" id="informacion">
+            <h2>Información técnica</h2>
+            <p class="mensaje">
+                Selecciona una mojonera para consultar sus datos.
+            </p>
+        </div>
+
+    </aside>
+
+    <div id="mapa"></div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+<script>
+
+// =====================================
+// 1. CREAR MAPA
+// =====================================
+
+const mapa = L.map('mapa');
+
+const satelite = L.tileLayer(
+    'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    {
+        attribution: 'Google Satellite',
+        maxZoom: 22
+    }
+);
+
+const calles = L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 19
+    }
+);
+
+// Satélite predeterminado
+satelite.addTo(mapa);
+
+// Selector de capas
+L.control.layers({
+    'Google Satélite': satelite,
+    'OpenStreetMap': calles
+}).addTo(mapa);
+
+
+// =====================================
+// 2. VARIABLES
+// =====================================
+
+let mojoneras = [];
+let marcadores = [];
+
+const lista = document.getElementById('lista');
+const informacion = document.getElementById('informacion');
+const buscador = document.getElementById('buscador');
+
+
+// =====================================
+// 3. CARGAR CSV
+// =====================================
+
+Papa.parse('Mojoneras_Fic.csv', {
+
+    download: true,
+    header: true,
+    skipEmptyLines: true,
+
+    transformHeader: h => h.replace(/^\uFEFF/, '').trim(),
+
+    complete: function(resultado) {
+
+        mojoneras = resultado.data.filter(m => {
+
+            return m.Mojonera &&
+                m.Latitud?.trim() !== '' &&
+                m.Longitud?.trim() !== '' &&
+                Number.isFinite(Number(m.Latitud)) &&
+                Number.isFinite(Number(m.Longitud)) &&
+                Math.abs(Number(m.Latitud)) <= 90 &&
+                Math.abs(Number(m.Longitud)) <= 180;
+
+        });
+
+        if (mojoneras.length === 0) {
+            lista.innerHTML = '<p class="mensaje">No se encontraron registros válidos.</p>';
+            return;
+        }
+
+        document.getElementById('total').textContent = mojoneras.length;
+
+        mostrarLista(mojoneras);
+        crearMarcadores();
+
+    },
+
+    error: function(error) {
+        console.error(error);
+        lista.innerHTML = '<p class="mensaje">No se pudo cargar Mojoneras_Fic.csv.</p>';
+    }
+
+});
+
+
+// =====================================
+// 4. CREAR MARCADORES
+// =====================================
+
+function crearMarcadores() {
+
+    const grupo = [];
+
+    mojoneras.forEach(m => {
+
+        const lat = Number(m.Latitud);
+        const lon = Number(m.Longitud);
+
+        const marcador = L.circleMarker([lat, lon], {
+            radius: 7,
+            color: '#FFFFFF',
+            weight: 2,
+            fillColor: '#218C78',
+            fillOpacity: 1
+        }).addTo(mapa);
+
+        marcador.bindTooltip(m.Mojonera, {
+            permanent: true,
+            direction: 'top',
+            offset: [0, -9],
+            opacity: 1,
+            className: 'etiqueta-mojonera'
+        });
+
+        marcador.on('click', () => seleccionar(m));
+
+        marcadores.push(marcador);
+        grupo.push([lat, lon]);
+
+    });
+
+    if (grupo.length === 1) {
+        mapa.setView(grupo[0], 20);
+    } else {
+        mapa.fitBounds(grupo, {
+            padding: [45, 45],
+            maxZoom: 20
+        });
+    }
+
+}
+
+
+// =====================================
+// 5. LISTADO
+// =====================================
+
+function mostrarLista(datos) {
+
+    lista.innerHTML = '';
+
+    if (datos.length === 0) {
+        lista.innerHTML = '<p class="mensaje">No hay coincidencias.</p>';
+        return;
+    }
+
+    datos.forEach(m => {
+
+        const elemento = document.createElement('div');
+
+        elemento.className = 'elemento';
+        elemento.textContent = m.Mojonera;
+
+        elemento.onclick = () => seleccionar(m);
+
+        lista.appendChild(elemento);
+
+    });
+
+}
+
+
+// =====================================
+// 6. FORMATO Y SEGURIDAD
+// =====================================
+
+function escaparHTML(valor) {
+
+    return String(valor ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    })[c]);
+
+}
+
+function formato(valor, decimales = 3) {
+
+    if (valor === undefined || valor === null || String(valor).trim() === '') {
+        return 'No disponible';
+    }
+
+    const numero = Number(valor);
+
+    if (Number.isFinite(numero)) {
+        return numero.toLocaleString('es-MX', {
+            minimumFractionDigits: decimales,
+            maximumFractionDigits: decimales
+        });
+    }
+
+    return escaparHTML(valor);
+
+}
+
+
+// =====================================
+// 7. SELECCIONAR MOJONERA
+// =====================================
+
+function seleccionar(m) {
+
+    const lat = Number(m.Latitud);
+    const lon = Number(m.Longitud);
+
+    mapa.flyTo([lat, lon], 20, {
+        duration: 0.8
+    });
+
+    const nombre = escaparHTML(m.Mojonera);
+
+    const elevacion = formato(m.Elevacion);
+    const este = formato(m.E);
+    const norte = formato(m.N);
+    const x = formato(m.X);
+    const y = formato(m.Y);
+    const latitud = formato(m.Latitud, 8);
+    const longitud = formato(m.Longitud, 8);
+
+    informacion.innerHTML = `
+
+        <h2>${nombre}</h2>
+
+        <div class="seccion">INFORMACIÓN GENERAL</div>
+
+        <div class="dato">
+            <strong>Identificador</strong>
+            ${nombre}
+        </div>
+
+        <div class="dato">
+            <strong>Elevación promedio</strong>
+            ${elevacion} m
+        </div>
+
+        <div class="seccion">COORDENADAS UTM</div>
+
+        <div class="dato">
+            <strong>Este (E)</strong>
+            ${este} m
+        </div>
+
+        <div class="dato">
+            <strong>Norte (N)</strong>
+            ${norte} m
+        </div>
+
+        <button class="boton" id="copiarUTM">
+            Copiar UTM
+        </button>
+
+        <div class="seccion">COORDENADAS TOPOGRÁFICAS</div>
+
+        <div class="dato">
+            <strong>X</strong>
+            ${x} m
+        </div>
+
+        <div class="dato">
+            <strong>Y</strong>
+            ${y} m
+        </div>
+
+        <div class="seccion">COORDENADAS GEOGRÁFICAS</div>
+
+        <div class="dato">
+            <strong>Latitud</strong>
+            ${latitud}
+        </div>
+
+        <div class="dato">
+            <strong>Longitud</strong>
+            ${longitud}
+        </div>
+
+        <button class="boton" id="copiarGeo">
+            Copiar geográficas
+        </button>
+
+        <a class="boton boton-verde"
+           href="cedulas/${encodeURIComponent(m.Mojonera)}.pdf"
+           target="_blank"
+           rel="noopener">
+            Abrir cédula PDF
+        </a>
+
+    `;
+
+    document.getElementById('copiarUTM').onclick = () =>
+        copiar(`${m.E}, ${m.N}`);
+
+    document.getElementById('copiarGeo').onclick = () =>
+        copiar(`${m.Latitud}, ${m.Longitud}`);
+
+    document.querySelectorAll('.elemento').forEach(el => {
+        el.classList.toggle('activo', el.textContent === m.Mojonera);
+    });
+
+}
+
+
+// =====================================
+// 8. COPIAR COORDENADAS
+// =====================================
+
+async function copiar(texto) {
+
+    try {
+        await navigator.clipboard.writeText(texto);
+        alert('Coordenadas copiadas.');
+    } catch (error) {
+        alert('No se pudieron copiar las coordenadas.');
+    }
+
+}
+
+
+// =====================================
+// 9. BUSCADOR
+// =====================================
+
+buscador.addEventListener('input', function() {
+
+    const texto = this.value.toLowerCase().trim();
+
+    const filtradas = mojoneras.filter(m =>
+        String(m.Mojonera).toLowerCase().includes(texto)
+    );
+
+    mostrarLista(filtradas);
+
+});
+
+</script>
+
+</body>
+</html>
